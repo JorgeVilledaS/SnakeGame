@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Snake Game</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      background: #000000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      color: white;
+    }
+    .game-container { text-align: center; }
+    h1 { color: #00ffaa; margin-bottom: 10px; }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(20, 25px);
+      grid-template-rows: repeat(20, 25px);
+      border: 3px solid #00ffaa;
+      background: #000000;
+      margin: 10px auto;
+      width: fit-content;
+    }
+    .cell { width: 25px; height: 25px; box-sizing: border-box; }
+    .snake-cell { background: #00ffaa; border: 1px solid #16213e; border-radius: 3px; }
+    .food-cell { background: #ff002b; border-radius: 50%; }
+    .empty-cell { background: transparent; }
+    .score-box { font-size: 18px; margin-bottom: 4px; }
+    .balance-positivo { color: #00ffaa; }
+    .balance-negativo { color: #ff002b; }
+    .ultimo-premio { font-size: 14px; margin-bottom: 4px; height: 20px; }
+    button {
+      margin-top: 10px; padding: 10px 20px; background: #00ffaa;
+      border: none; border-radius: 5px; font-size: 16px; cursor: pointer;
+    }
+    .game-over-text { color: #ff002b; font-size: 20px; margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+
+    const FILAS = 20;
+    const COLS = 20;
+    const VELOCIDAD = 150;
+    const COSTO_POR_PARTIDA = 100;
+
+    // Componente Score 
+    function Score({ balance, frutasComidas, ultimoPremio }) {
+      const claseBalance = balance >= 0 ? "balance-positivo" : "balance-negativo";
+      return (
+        <div>
+          <div className={`score-box ${claseBalance}`}>
+            Balance (pisto): {balance >= 0 ? "+" : ""}{balance}Q
+          </div>
+          <div className="score-box">
+            Frutas DEGUSTADAS: {frutasComidas}
+          </div>
+          <div className="ultimo-premio">
+            {ultimoPremio !== null && (
+              <span style={{ color: ultimoPremio >= 0 ? "#00ffaa" : "#ff002b" }}>
+                Última fruta: {ultimoPremio >= 0 ? "+" : ""}{ultimoPremio}Q
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    //  Componente Food 
+    function Food({ posicion }) {
+      return null;
+    }
+
+    //  Componente Snake 
+    function Snake({ segmentos }) {
+      return null;
+    }
+
+    //  Componente Board 
+    function Board({ serpiente, comida }) {
+      const celdas = [];
+      for (let fila = 0; fila < FILAS; fila++) {
+        for (let col = 0; col < COLS; col++) {
+          const esSerpiente = serpiente.some((seg) => seg[0] === fila && seg[1] === col);
+          const esComida = comida[0] === fila && comida[1] === col;
+          let clase = "cell empty-cell";
+          if (esSerpiente) clase = "cell snake-cell";
+          if (esComida) clase = "cell food-cell";
+          celdas.push(<div key={`${fila}-${col}`} className={clase}></div>);
+        }
+      }
+      return <div className="board">{celdas}</div>;
+    }
+
+    // Componente Game 
+    function Game() {
+      const [serpiente, setSerpiente] = React.useState([[10,10],[10,9],[10,8]]);
+      const [direccion, setDireccion] = React.useState([0, 1]);
+      const [comida, setComida] = React.useState([5, 5]);
+      const [balance, setBalance] = React.useState(0);
+      const [frutasComidas, setFrutasComidas] = React.useState(0);
+      const [ultimoPremio, setUltimoPremio] = React.useState(null);
+      const [gameOver, setGameOver] = React.useState(false);
+      const [empezado, setEmpezado] = React.useState(false);
+
+      function nuevaComida() {
+        return [Math.floor(Math.random() * FILAS), Math.floor(Math.random() * COLS)];
+      }
+
+      // Valor aleatorio entre -50 y 100 (sin 0)
+      function valorFruta() {
+        const val = Math.floor(Math.random() * 151) - 50;
+        return val === 0 ? 1 : val;
+      }
+
+      // useEffect para teclas
+      React.useEffect(() => {
+        function manejarTecla(e) {
+          if (e.key === "ArrowUp")    setDireccion([-1, 0]);
+          if (e.key === "ArrowDown")  setDireccion([1, 0]);
+          if (e.key === "ArrowLeft")  setDireccion([0, -1]);
+          if (e.key === "ArrowRight") setDireccion([0, 1]);
+        }
+        window.addEventListener("keydown", manejarTecla);
+        return () => window.removeEventListener("keydown", manejarTecla);
+      }, []);
+
+      // useEffect para el loop del juego
+      React.useEffect(() => {
+        if (!empezado || gameOver) return;
+
+        const intervalo = setInterval(() => {
+          setSerpiente((serpienteActual) => {
+            const cabeza = serpienteActual[0];
+            const nuevaCabeza = [cabeza[0] + direccion[0], cabeza[1] + direccion[1]];
+
+            // Colisión con pared
+            if (nuevaCabeza[0] < 0 || nuevaCabeza[0] >= FILAS || nuevaCabeza[1] < 0 || nuevaCabeza[1] >= COLS) {
+              setGameOver(true);
+              return serpienteActual;
+            }
+
+            // Colisión consigo misma
+            const choca = serpienteActual.some((seg) => seg[0] === nuevaCabeza[0] && seg[1] === nuevaCabeza[1]);
+            if (choca) {
+              setGameOver(true);
+              return serpienteActual;
+            }
+
+            // Comió comida
+            setComida((comidaActual) => {
+              if (nuevaCabeza[0] === comidaActual[0] && nuevaCabeza[1] === comidaActual[1]) {
+                const premio = valorFruta();
+                setBalance((b) => b + premio);
+                setFrutasComidas((f) => f + 1);
+                setUltimoPremio(premio);
+                return nuevaComida();
+              }
+              return comidaActual;
+            });
+
+            // Mover serpiente (crece solo si comió, sino se mueve normal)
+            return [nuevaCabeza, ...serpienteActual.slice(0, -1)];
+          });
+        }, VELOCIDAD);
+
+        return () => clearInterval(intervalo);
+      }, [empezado, gameOver, direccion]);
+
+      function iniciarJuego() {
+        setBalance((b) => b - COSTO_POR_PARTIDA); // cobrar 100Q
+        setSerpiente([[10,10],[10,9],[10,8]]);
+        setDireccion([0, 1]);
+        setComida([5, 5]);
+        setFrutasComidas(0);
+        setUltimoPremio(null);
+        setGameOver(false);
+        setEmpezado(true);
+      }
+
+      return (
+        <div className="game-container">
+          <h1>CUlebrita modo gambling</h1>
+
+          <Score balance={balance} frutasComidas={frutasComidas} ultimoPremio={ultimoPremio} />
+          <Board serpiente={serpiente} comida={comida} />
+          <Snake segmentos={serpiente} />
+          <Food posicion={comida} />
+
+          {gameOver && (
+            <div className="game-over-text">
+              💀 Perdiste papi — Balance: {balance >= 0 ? "+" : ""}{balance}Q
+            </div>
+          )}
+
+          {!empezado ? (
+            <div>
+              <button onClick={iniciarJuego}>Jugar (-{COSTO_POR_PARTIDA}Q)</button>
+              <p style={{ color: "#aaa", fontSize: "13px" }}>
+                Cada partida cuesta {COSTO_POR_PARTIDA}Q. Cada fruta vale entre -10Q y +10Q.
+              </p>
+              <p style={{ color: "#aaa", fontSize: "12px" }}>Usa las flechas del teclado.</p>
+            </div>
+          ) : gameOver ? (
+            <button onClick={iniciarJuego}>Jugar de nuevo (-{COSTO_POR_PARTIDA}Q)</button>
+          ) : null}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<Game />);
+
+  </script>
+</body>
+</html>
